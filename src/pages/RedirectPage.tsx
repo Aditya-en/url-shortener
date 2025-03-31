@@ -44,7 +44,7 @@ const RedirectPage: React.FC = () => {
 
       try {
         // Initial check without password
-        const response = await fetch(`/api/redirect/${shortId}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/redirect/${shortId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ const RedirectPage: React.FC = () => {
     setError(''); // Clear previous password errors
 
     try {
-      const response = await fetch(`/api/redirect/${shortId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/redirect/${shortId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
