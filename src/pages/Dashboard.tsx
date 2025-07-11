@@ -1,93 +1,90 @@
-// src/pages/Dashboard.tsx
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import { Link as RouterLink } from 'react-router-dom'; // Alias Link
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { Link as LinkIcon, ExternalLink, Shield, Calendar, BarChart2, Copy, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { Input } from '../components/ui/input';
+import { useAuth } from '../auth/AuthContext';
 
-// Define the structure for URL data displayed on the dashboard
 interface UrlData {
+  id: number;
   shortId: string;
   originalUrl: string;
-  // Use string for dates if fetched from API, Date if processed/mocked
-  createdAt: Date | string;
-  expiresAt: Date | string;
+  createdAt: string;
+  expiresAt: string;
   clicks: number;
   isPasswordProtected: boolean;
 }
 
-// This is a placeholder component - in a real app, you would implement proper user authentication
-// and fetch only the URLs created by the logged-in user
 const Dashboard: React.FC = () => {
+  const { session, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [urls, setUrls] = useState<UrlData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Placeholder function - in a real app, you would fetch from your API
-  // Ensure the fetched data matches the UrlData interface
   useEffect(() => {
-    setLoading(true);
-    // This is just a mock function for demo purposes
-    // In a real API, createdAt/expiresAt might be strings (e.g., ISO format)
-    const mockUrls: UrlData[] = [
-      {
-        shortId: 'demo1',
-        originalUrl: 'https://example.com/very-long-url-path-that-needs-shortening',
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // Using Date object for mock
-        expiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000), // Using Date object for mock
-        clicks: 42,
-        isPasswordProtected: true
-      },
-      {
-        shortId: 'demo2',
-        originalUrl: 'https://anotherexample.com/some-other-long-path',
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        expiresAt: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
-        clicks: 17,
-        isPasswordProtected: false
+    if (authLoading) return;
+    if (!user) {
+      navigate('/');
+      return;
+    }
+
+    const fetchUrls = async () => {
+      if (!session) return;
+      setLoading(true);
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/urls`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch URLs');
+        }
+        const data = await response.json();
+        setUrls(data);
+      } catch (error) {
+        toast.error('Could not load your URLs.');
+      } finally {
+        setLoading(false);
       }
-    ];
-
-    // Simulate API fetch delay
-    const timer = setTimeout(() => {
-      setUrls(mockUrls);
-      setLoading(false);
-    }, 1000);
-
-    return () => clearTimeout(timer); // Cleanup timer on unmount
-  }, []); // Empty dependency array ensures this runs only once on mount
+    };
+    
+    fetchUrls();
+  }, [user, session, authLoading, navigate]);
 
   const copyToClipboard = (shortId: string) => {
     navigator.clipboard.writeText(`${window.location.origin}/${shortId}`)
-      .then(() => {
-        toast('Copied to clipboard',{
-          description: 'The short URL has been copied to your clipboard.',
-        });
-      })
-      .catch(err => {
-          console.error('Failed to copy: ', err);
-          toast('Error',{
-              
-              description: 'Could not copy URL to clipboard.',
-          });
-      });
+      .then(() => toast.success('Copied to clipboard'))
+      .catch(() => toast.error('Failed to copy URL.'));
   };
 
-  // Placeholder function - in a real app, you would call your API to delete
-  const deleteUrl = (shortIdToDelete: string) => {
-    // Optimistic UI update (remove immediately)
+  const deleteUrl = async (shortIdToDelete: string) => {
+    if (!session) return;
+    
+    // Optimistic UI update
     setUrls(currentUrls => currentUrls.filter(url => url.shortId !== shortIdToDelete));
 
-    // Here you would typically make an API call:
-    // fetch(`/api/urls/${shortIdToDelete}`, { method: 'DELETE' })
-    //  .then(response => { if (!response.ok) throw new Error('Delete failed'); /* Handle success */})
-    //  .catch(error => { /* Handle error, maybe add the URL back to the list */ });
+    try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/urls/${shortIdToDelete}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+            },
+        });
+        
+        if (!response.ok) {
+            throw new Error('Deletion failed on the server.');
+        }
 
-    toast('URL Deleted (Mock)',{
-      description: `The shortened URL /${shortIdToDelete} has been removed from the list.`,
-    });
+        toast.success(`URL /${shortIdToDelete} has been deleted.`);
+
+    } catch (error) {
+        toast.error('Failed to delete the URL. Please refresh and try again.');
+        // Optional: Refetch URLs to get the correct state
+    }
   };
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -114,6 +111,17 @@ const Dashboard: React.FC = () => {
     url.shortId.toLowerCase().includes(searchTerm.toLowerCase()) ||
     url.originalUrl.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (authLoading || loading) {
+     return (
+        <div className="flex justify-center items-center h-64">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
+             <span className="sr-only">Loading...</span>
+          </div>
+          <span className="ml-3">Loading your dashboard...</span>
+        </div>
+      );
+  }
 
   return (
     <div className="container mx-auto py-8">
